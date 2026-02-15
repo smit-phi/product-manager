@@ -1,4 +1,4 @@
-const productList = {}
+let productList = []
 var id = 1;
 
 function Product(pid, name, image, price, description){
@@ -11,11 +11,9 @@ function Product(pid, name, image, price, description){
     this.getPid = function(){
         return this.pid;
     }
-
     this.getImageLink = function(){
         return this.image
     }
-
 }
 
 function toString(product){
@@ -26,71 +24,91 @@ function toObject(str){
     return JSON.parse(str);
 }
 
-function addToLocalStorage(product){
-    let productString = toString(product);
-    window.localStorage.setItem(`${product.getPid()}`, productString);
+// save the entire array to LocalStorage at once.
+function saveProducts(){
+    let str = toString(productList);
+    localStorage.setItem('products', str);
+}
+
+// load products when the script starts for persistence
+function loadProducts(){
+    let str = localStorage.getItem('products');
+    if(str){
+        productList = toObject(str);
+        // so the id don't overlap, set the current id to the last product's id + 1
+        if(productList.length > 0){
+            id = productList[productList.length - 1].pid + 1
+        }
+    }
 }
 
 function createProduct(name, image, price, description){
     let p = new Product(id, name, image, price, description);
-    productList[id] = toString(p);    
-    addToLocalStorage(p);
-    id = id + 1;
-    console.log(p);
+
+    productList.push(p);   
+    saveProducts();
+
+    id++;
+    console.log("Created: ", p);
 }
 
 function updateProduct(pid, name, image, price, description){
-    window.localStorage.removeItem(`${pid}`);
-    let p = new Product(pid, name, image, price, description);
-    addToLocalStorage(p);
-    productList[pid] = toString(p);
-    console.log(p);
+    let index = productList.findIndex(function(p) {
+        return p.pid === pid;
+    });
+
+    if(index != 1){
+        productList[index].name = name;
+        productList[index].image = image;
+        productList[index].price = price;
+        productList[index].description = description;
+
+        saveProducts();
+        console.log("Updated: ", productList[index]);
+    }
+    else{
+        console.log("Product with id " + pid + " not found.");
+    }
 }
 
 function filterByPid(startPid, endPid){
 
-    // if(endPid < startPid){
-        // return;
-    // }
-    // let start = 0;
-    // let end = productList.length - 1;
-    // if(endPid > end) return;
+    let filterdlist = productList.filter(function(product){
+        return product.pid >= startPid && product.pid <= endPid;
+    });
 
-    let filterdlist = {}
-    let curr = startPid;
-
-    while(curr != endPid + 1){
-        let obj = toObject(productList[curr])
-        filterdlist[curr] = obj
-        curr = curr + 1;
-    }
-    return filterdlist;    
+    return filterdlist;
 }
 
-createProduct('daftpunk helmet', 'url', 999, 'suit your self');
-createProduct('cricket helmet', 'url', 999, 'suit your own self');
-createProduct('mototcycle helmet', 'url', 999, 'save your self');
 
+function sortByPid(){
+    let sortedList = [...productList];
 
-let a = filterByPid(1, 2);
-console.log(typeof(a[1]));
-console.log(a);
+    sortedList.sort(function(a, b){
+        return a.pid - b.pid;
+    })
 
-
-function sortByPid(products){
-    let sortedList = {}
-
-    
-
-
-
-}
-
-function sortByName(){
-
+    return sortedList;
 }
 
 function sortByPrice(){
+    let sortedList = [...productList];
 
+    sortedList.sort(function(a, b){
+        return a.price - b.price;
+    })
+
+    return sortedList;
 }
 
+function sortByName(){
+    let sortedList = [...productList];
+
+    sortedList.sort(function(a, b){
+        return a.name.localeCompare(b.name);
+    })
+
+    return sortedList;
+}
+
+loadProducts();
