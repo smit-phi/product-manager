@@ -158,15 +158,20 @@ function renderProducts(listToRender = productList){
 // handle form submission create and update
 function handleFormSubmit() {
 
-    let name = document.getElementById('inputName').value;
-    let image = document.getElementById('inputImage').value;
-    let price = parseFloat(document.getElementById('inputPrice').value);
-    let desc = document.getElementById('inputDesc').value;
+    let name = document.getElementById('inputName').value.trim();
+    let image = document.getElementById('inputImage').value.trim();
+    let price = document.getElementById('inputPrice').value.trim();
+    let desc = document.getElementById('inputDesc').value.trim();
 
-    if (name.trim() === "" || image.trim() === "" || desc.trim() === "") {
-        alert("Please fill out all fields. Empty spaces don't count!");
-        return; // STOP HERE. Do not create product.
+    if (!name || !image || !price || !desc) {
+        alert("All fields are required.");
+        return;
     }
+    if (isNaN(price) || price === "" || Number(price) <= 0) {
+        alert("Price must be a positive number.");
+        return;
+    }
+    price = parseFloat(price);
 
     let editPid = document.getElementById('editPid').value;
 
@@ -181,16 +186,44 @@ function handleFormSubmit() {
     document.getElementById('editPid').value = '';
 
     renderProducts();
+    // Close modal after save
+    let modal = document.getElementById('productModal');
+    let bsModal = bootstrap.Modal.getInstance(modal);
+    if (!bsModal) bsModal = new bootstrap.Modal(modal);
+    bsModal.hide();
 }
 
-function prepareCreate(){
+// Restrict add product to logged-in users
+function checkAuthForAdd() {
+    let user = JSON.parse(localStorage.getItem('loggedInUser') || 'null');
+    if (!user) {
+        alert('Please log in to add a product.');
+        return false;
+    }
+    return true;
+}
+
+// Update prepareCreate to check auth
+function prepareCreate() {
+    if (!checkAuthForAdd()) return;
     document.getElementById('productForm').reset();
     document.getElementById('editPid').value = '';
     document.getElementById('modalTitle').innerText = 'Add New Product';
 }
 
-// prepare the form for edit
+// Restrict edit and delete to logged-in users
+function checkAuthForEditDelete() {
+    let user = JSON.parse(localStorage.getItem('loggedInUser') || 'null');
+    if (!user) {
+        alert('Please log in to edit or delete products.');
+        return false;
+    }
+    return true;
+}
+
+// Update prepareEdit to check auth
 function prepareEdit(pid) {
+    if (!checkAuthForEditDelete()) return;
     // find the product
     let product = productList.find(p => p.pid === pid);
     
@@ -205,8 +238,9 @@ function prepareEdit(pid) {
     document.getElementById('modalTitle').innerText = 'Edit Product';
 }
 
-// 5. Helper: Delete
+// Update deleteProduct to check auth
 function deleteProduct(pid) {
+    if (!checkAuthForEditDelete()) return;
     if(confirm("Are you sure?")) {
         // Filter out the deleted item
         productList = productList.filter(p => p.pid !== pid);
@@ -274,5 +308,107 @@ function resetFilter(){
 
     renderProducts(productList);
 }
+
+// Authentication logic
+function toggleAuthForm() {
+    const loginForm = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+    const modalTitle = document.getElementById('authModalTitle');
+    const toggleLink = document.getElementById('toggleAuth');
+
+    if (loginForm.style.display === 'none') {
+        loginForm.style.display = '';
+        signupForm.style.display = 'none';
+        modalTitle.innerText = 'Login';
+        toggleLink.innerText = 'Switch to Signup';
+    } else {
+        loginForm.style.display = 'none';
+        signupForm.style.display = '';
+        modalTitle.innerText = 'Signup';
+        toggleLink.innerText = 'Switch to Login';
+    }
+}
+
+function handleSignup() {
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    if (!email || !password) {
+        alert('Please fill all fields.');
+        return;
+    }
+    let users = JSON.parse(localStorage.getItem('users') || '[]');
+    if (users.some(u => u.email === email)) {
+        alert('User already exists.');
+        return;
+    }
+    users.push({ email, password });
+    localStorage.setItem('users', JSON.stringify(users));
+    alert('Signup successful! Please login.');
+    toggleAuthForm();
+}
+
+function handleLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) {
+        alert('Please fill all fields.');
+        return;
+    }
+    let users = JSON.parse(localStorage.getItem('users') || '[]');
+    const user = users.find(u => u.email === email && u.password === password);
+    if (!user) {
+        alert('Invalid credentials.');
+        return;
+    }
+    localStorage.setItem('loggedInUser', JSON.stringify(user));
+    alert('Login successful!');
+    // Hide modal after login
+    let modal = document.getElementById('authModal');
+    let bsModal = bootstrap.Modal.getInstance(modal);
+    if (!bsModal) bsModal = new bootstrap.Modal(modal);
+    bsModal.hide();
+    updateNavbarAuth(); // Update navbar immediately after login
+    // Optionally, update UI for logged-in user
+}
+
+// Update navbar for authentication state
+function updateNavbarAuth() {
+    const authBtn = document.querySelector('[data-bs-target="#authModal"]');
+    let navbar = authBtn.parentElement;
+    let loggedInUser = JSON.parse(localStorage.getItem('loggedInUser') || 'null');
+    // Remove any existing user info or logout button
+    let userInfo = document.getElementById('userInfo');
+    if (userInfo) userInfo.remove();
+    let logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.remove();
+    if (loggedInUser) {
+        authBtn.style.display = 'none';
+        // Show user info and logout button
+        let info = document.createElement('span');
+        info.id = 'userInfo';
+        info.className = 'navbar-text text-light ms-2';
+        info.textContent = loggedInUser.email;
+        navbar.appendChild(info);
+        let btn = document.createElement('button');
+        btn.id = 'logoutBtn';
+        btn.className = 'btn btn-outline-danger ms-2';
+        btn.textContent = 'Logout';
+        btn.onclick = handleLogout;
+        navbar.appendChild(btn);
+    } else {
+        authBtn.style.display = '';
+    }
+}
+
+function handleLogout() {
+    localStorage.removeItem('loggedInUser');
+    updateNavbarAuth();
+    // Optionally, refresh UI or restrict actions
+}
+
+// Call updateNavbarAuth on page load and after login
+window.addEventListener('DOMContentLoaded', updateNavbarAuth);
+// Also call after successful login
+// In handleLogin(), add: updateNavbarAuth(); after bsModal.hide();
 
 loadProducts();
